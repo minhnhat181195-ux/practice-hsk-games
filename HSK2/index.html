@@ -10,11 +10,14 @@
 *{box-sizing:border-box;margin:0;padding:0}
 body{background:var(--bg);color:var(--ink);font-family:"Be Vietnam Pro",system-ui,sans-serif;padding:0 16px 60px;line-height:1.6}
 .wrap{max-width:640px;margin:0 auto}
-header{text-align:center;padding:44px 0 26px}
+header{text-align:center;padding:44px 0 22px}
 .seal{display:inline-flex;align-items:center;justify-content:center;width:68px;height:68px;border:2.5px solid var(--blue);border-radius:14px;color:var(--blue);font-family:"Ma Shan Zheng",serif;font-size:32px;transform:rotate(-4deg);margin-bottom:16px;background:#fff;box-shadow:3px 4px 0 rgba(30,95,168,.16)}
 h1{font-family:"Ma Shan Zheng",serif;font-weight:400;font-size:clamp(30px,7vw,44px);color:var(--blue-deep);letter-spacing:2px}
 .sub{color:var(--ink-soft);margin-top:6px}
 .brand{margin-top:10px;font-size:12px;letter-spacing:3px;color:var(--teal);font-weight:700}
+.tabs{display:flex;gap:8px;justify-content:center;flex-wrap:wrap;margin:6px 0 18px}
+.tabs button{border:1.5px solid var(--blue);background:#fff;color:var(--blue);border-radius:999px;padding:6px 16px;font:inherit;font-weight:600;cursor:pointer}
+.tabs button.on{background:var(--blue);color:#fff}
 .lesson{display:flex;align-items:center;gap:16px;background:#fff;border-radius:16px;padding:18px 20px;margin-bottom:14px;text-decoration:none;color:inherit;box-shadow:0 2px 10px rgba(18,62,115,.08);border:1.5px solid transparent;transition:.15s}
 .lesson:active,.lesson:hover{border-color:var(--blue);transform:translateY(-1px)}
 .num{flex:none;width:52px;height:52px;border-radius:12px;background:var(--blue);color:#fff;display:flex;flex-direction:column;align-items:center;justify-content:center;font-weight:700;line-height:1.1}
@@ -22,6 +25,7 @@ h1{font-family:"Ma Shan Zheng",serif;font-weight:400;font-size:clamp(30px,7vw,44
 .cn{font-family:"Noto Serif SC",serif;font-size:20px;color:var(--blue-deep)}
 .vi{font-size:14px;color:var(--ink-soft)}
 .go{margin-left:auto;color:var(--blue);font-size:22px}
+.msg{text-align:center;color:var(--ink-soft);padding:30px 10px}
 .note{text-align:center;font-size:13px;color:var(--ink-soft);margin-top:24px}
 </style>
 </head>
@@ -33,15 +37,75 @@ h1{font-family:"Ma Shan Zheng",serif;font-weight:400;font-size:clamp(30px,7vw,44
     <div class="sub">Bài tập sau giờ học · chọn bài để bắt đầu</div>
     <div class="brand">VÙNG TỰ TRỊ CỦA CÔ OANH</div>
   </header>
-
-  <!-- Thêm bài mới: copy 1 khối <a class="lesson">…</a> bên dưới, đổi số bài, tên file và tên bài -->
-  <a class="lesson" href="bai5.html">
-    <div class="num"><small>BÀI</small>5</div>
-    <div><div class="cn">就买这件吧</div><div class="vi">Mua chiếc áo này đi</div></div>
-    <div class="go">›</div>
-  </a>
-
+  <div class="tabs" id="tabs"></div>
+  <div id="list"><div class="msg">Đang tải danh sách bài…</div></div>
   <div class="note">Mật khẩu lớp do cô giáo cung cấp.</div>
 </div>
+
+<script>
+/* Trang này TỰ ĐỘNG liệt kê mọi file .html trong kho GitHub — không cần sửa khi thêm bài mới.
+   Tên bài lấy từ thẻ <title> của từng file (dạng "第五课 · 就买这件吧 · Bài 5 · Mua chiếc áo này đi"). */
+const OWNER='minhnhat181195-ux', REPO='practice-hsk-games', BRANCH='main';
+const listEl=document.getElementById('list'), tabsEl=document.getElementById('tabs');
+
+function lessonNo(str){ const m=String(str).match(/b[aà]i\s*_?(\d+)/i)||String(str).match(/(\d+)/); return m?+m[1]:9999; }
+function esc(s){ return String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+
+async function readTitle(path){
+  try{
+    const r=await fetch(path.split('/').map(encodeURIComponent).join('/'));
+    if(!r.ok) return null;
+    const t=(await r.text()).match(/<title>([\s\S]*?)<\/title>/i);
+    return t?t[1].trim():null;
+  }catch(e){ return null; }
+}
+
+async function load(){
+  let files;
+  try{
+    const r=await fetch(`https://api.github.com/repos/${OWNER}/${REPO}/git/trees/${BRANCH}?recursive=1`);
+    if(!r.ok) throw new Error('HTTP '+r.status);
+    const data=await r.json();
+    files=data.tree.filter(x=>x.type==='blob' && /\.html?$/i.test(x.path) && !/(^|\/)index\.html?$/i.test(x.path)).map(x=>x.path);
+  }catch(e){
+    listEl.innerHTML='<div class="msg">Chưa tải được danh sách bài. Hãy tải lại trang sau ít phút.</div>'; return;
+  }
+  if(!files.length){ listEl.innerHTML='<div class="msg">Chưa có bài nào.</div>'; return; }
+
+  const items=await Promise.all(files.map(async path=>{
+    const folder=path.includes('/')?path.split('/')[0]:'Khác';
+    const fname=path.split('/').pop().replace(/\.html?$/i,'');
+    const title=await readTitle(path);
+    let cn=fname.replace(/[_-]+/g,' '), vi='', no=lessonNo(fname);
+    if(title){
+      const p=title.split('·').map(s=>s.trim()).filter(Boolean);
+      if(p.length>=4){ cn=p[1]; vi=p[3]; no=lessonNo(p[2]); }
+      else { cn=title; }
+    }
+    return {path,folder,cn,vi,no};
+  }));
+
+  const groups={};
+  items.forEach(it=>{ (groups[it.folder]=groups[it.folder]||[]).push(it); });
+  const names=Object.keys(groups).sort();
+  names.forEach(n=>groups[n].sort((a,b)=>a.no-b.no||a.path.localeCompare(b.path)));
+
+  function show(name){
+    tabsEl.querySelectorAll('button').forEach(b=>b.classList.toggle('on',b.dataset.g===name));
+    listEl.innerHTML=groups[name].map(it=>`
+      <a class="lesson" href="${esc(it.path.split('/').map(encodeURIComponent).join('/'))}">
+        <div class="num"><small>BÀI</small>${it.no===9999?'•':it.no}</div>
+        <div><div class="cn">${esc(it.cn)}</div>${it.vi?`<div class="vi">${esc(it.vi)}</div>`:''}</div>
+        <div class="go">›</div>
+      </a>`).join('');
+  }
+  if(names.length>1){
+    tabsEl.innerHTML=names.map(n=>`<button data-g="${esc(n)}">${esc(n)}</button>`).join('');
+    tabsEl.querySelectorAll('button').forEach(b=>b.onclick=()=>show(b.dataset.g));
+  }
+  show(names[0]);
+}
+load();
+</script>
 </body>
 </html>
