@@ -182,7 +182,7 @@
 
 <script>
 /* ======================= CẤU HÌNH ======================= */
-const SHEET_URL = "https://script.google.com/macros/s/AKfycbzoDsZrvpiMVljPDTHtl28wHBFzppCx_S8spxq3crICwIEjx5ZfQgAn0RKDHICyTapT/exec";          // dán URL Apps Script vào đây nếu muốn gửi điểm về Google Sheet
+const SHEET_URL = "https://script.google.com/macros/s/AKfycbwBYSiaI8YefiPuUOu1Razy26jtk3N7u4UgHWOtDE-RkOFx78tuz0zDbeUbjwqZA9pl/exec";          // dán URL Apps Script vào đây nếu muốn gửi điểm về Google Sheet
 const TEST_NAME = "HSK2 – Kiểm tra tổng hợp Bài 1–6";
 const DURATION_MIN = 45;
 const MAX_PLAYS = 2;
@@ -568,7 +568,11 @@ ${writing.map((w,i)=>`${51+i}. ${w||"(bỏ trống)"}`).join("\n")}`;
 
   safeSet("hsk2_b1_6_done", JSON.stringify({auto, name, cls}));
   safeSet("hsk2_b1_6_ans", "");
-  sendToSheet({test:TEST_NAME, name, cls, auto, p1:per.p1.got, p2:per.p2.got, p3:per.p3.got, p4:per.p4.got, p5:per.p5.got, p6:per.p6.got, used, writing});
+  const wrongList = ALL.filter(q=>q.type!=="write" && !isRight(q)).map(q=>q.num).join(", ") || "—";
+  sendToSheet({test:TEST_NAME, name, cls, score:auto, max:90, used,
+    parts:Object.keys(lbl).map(k=>({label:lbl[k], got:per[k].got, max:per[k].max})),
+    extra:[{label:"Câu sai / bỏ trống", value:wrongList}].concat(writing.map((w,i)=>({label:"Câu "+(51+i), value:w}))),
+    manual:{label:"Điểm viết", max:10}});
 }
 function copyResult(){
   const t = window._resultText||"";
